@@ -17,12 +17,14 @@
 // Contributor(s): Tony Kalf (maXcomX), Peter Larson (ozships),
 //                 Ramyses De Macedo Rodrigues, (Ciaran).
 //
-// ----------------------------------------------------------------------------
+// Rudy Velthuis 1960 ~ 2019.
+//------------------------------------------------------------------------------
 // CHANGE LOG
 // Date       Person              Reason
-// ---------- ------------------- ---------------------------------------------
-// 28/05/2020                     Kraftwerk release. (WIN10 May 2020 update, version 20H1)
-// ----------------------------------------------------------------------------
+// ---------- ------------------- ----------------------------------------------
+// 28/05/2020                     Kraftwerk release. (WIN10 May 2020 update, version 2004)
+//                                #1 Autobahn
+//------------------------------------------------------------------------------
 //
 // Remarks: Requires Windows 10 or higher.
 //
@@ -31,7 +33,7 @@
 // Known Issues: -
 //
 // Compiler version: 23 up to 33
-// SDK version: 10.0.19569.0
+// SDK version: 10.0.19041.0
 //
 // Todo: -
 //
@@ -44,9 +46,9 @@
 // LICENSE
 //
 // The contents of this file are subject to the Mozilla Public License
-// Version 1.1 (the "License"); you may not use this file except in
+// Version 2.0 (the "License"); you may not use this file except in
 // compliance with the License. You may obtain a copy of the License at
-// http://www.mozilla.org/MPL/MPL-1.1.html
+// https://www.mozilla.org/en-US/MPL/2.0/
 //
 // Software distributed under the License is distributed on an "AS IS"
 // basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
