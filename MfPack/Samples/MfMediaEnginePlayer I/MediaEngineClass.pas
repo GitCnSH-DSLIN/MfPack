@@ -16,12 +16,14 @@
 // Intiator(s): Tony (maXcomX), Peter (OzShips), Ramyses De Macedo Rodrigues.
 // Contributor(s): Tony Kalf (maXcomX), Peter Larson (ozships), Ramyses De Macedo Rodrigues.
 //
-// ----------------------------------------------------------------------------
+// Rudy Velthuis 1960 ~ 2019.
+//------------------------------------------------------------------------------
 // CHANGE LOG
 // Date       Person              Reason
-// ---------- ------------------- ---------------------------------------------
-// 28/05/2020                     Kraftwerk release. (WIN10 May 2020 update, version 20H1)
-// ----------------------------------------------------------------------------
+// ---------- ------------------- ----------------------------------------------
+// 28/05/2020                     Kraftwerk release. (WIN10 May 2020 update, version 2004)
+//                                #1 Autobahn
+//------------------------------------------------------------------------------
 //
 // Remarks: Requires Windows 10 or higher.
 //
@@ -30,7 +32,7 @@
 // Known Issues: -
 //
 // Compiler version: 23 up to 33
-// SDK version: 10.0.19569.0
+// SDK version: 10.0.19041.0
 //
 // Todo: -
 //
@@ -105,7 +107,10 @@ type
                  rMsgUpdateVideoStream,
                  rMsgSetPosition,
                  rMsgFlush,
-                 rMsgNone);
+                 rMsgNone,
+                 rMsgPause,
+                 rMsgStop,
+                 rMsgPlay);
 
 
   TcMediaEngine = class(TInterfacedPersistent, IMFMediaEngineNotify)
@@ -115,7 +120,7 @@ type
     pt_hwndEvent: HWND;       // Handle of the caller that recieves the events
     pt_hwndCaller: HWND;      // Handle of the caller (mainform)
     pt_rcpdest: TRect;        // The window rectangle where the video is played on
-    pt_Request: TRequestMsg;  // Holds the request commands/messages
+    pt_RequestMsg: TRequestMsg;  // Holds the request commands/messages
     pt_CritSec: TCriticalSection;  // Critical section handler
     pt_RedrawStatus: TRedrawStatus;  // Status of the redraw event
 
@@ -202,11 +207,11 @@ type
     // Play the choosen mediasource
     function Play(): HResult;
     // Pause
-    function Pause(): HResult;
+    procedure Pause();
     // Stop playing.
-    function Stop(): HResult;
+    procedure Stop();
     // Stop and release all resources kept by the MediaEngine.
-    function Flush(): HResult;
+    procedure Flush();
     // Set audio volume
     procedure SetVolume(dVol: Double);
     // Set audio balance
@@ -352,7 +357,7 @@ try
   // Create the mediaEngine
   hr := li_MediaEngineClassFactory.CreateInstance(0,
                                                   li_Attributes,
-                                                  IUnknown(pr_MediaEngine));
+                                                  IMFMediaEngine(pr_MediaEngine));
 
   if FAILED(hr) then
     begin
@@ -516,52 +521,51 @@ procedure TcMediaEngine.OnTimeUpdate(event: DWORD);
 var
   hr: HResult; // Debug
 
+label
+ doexit;
+
 begin
-  hr := E_POINTER;
+  hr := S_OK;
 
   if Not Assigned(pr_MediaEngine) then
     Exit;
 
-  // Request handlers.  We do keep it simple for result handling.
-  if (pt_Request = rMsgSetPosition) then
-    begin
-      hr := pr_MediaEngine.SetCurrentTime(pr_Position);
-      pt_Request := rMsgNone;
-    end;
+  // Request handlers
+  //if pt_RequestMsg <> rMsgNone then
 
-  if (pt_Request = rMsgSetVolume) then
-    begin
-      hr := pr_MediaEngine.SetVolume(pr_Volume);
-      pt_Request := rMsgNone;
-    end;
-
-  if (pt_Request = rMsgSetBalance) then
-    begin
-      hr := pr_MediaEngine.SetBalance(pr_Balance);
-      pt_Request := rMsgNone;
-    end;
-
-  if (pt_Request = rMsgUpdateVideoStream) then
-    begin
-      hr := pr_MediaEngine.UpdateVideoStream(Nil,
-                                             @pt_rcpdest,
-                                             Nil);
-      pt_Request := rMsgNone;
-    end;
-
-  if (pt_Request = rMsgFlush) then
-    begin
-      hr := pr_MediaEngine.Shutdown();
-      pt_Request := rMsgNone;
-      Exit;
-    end;
-
-  if Failed(hr) then
-    begin
-      SetWindowText(pt_hwndEvent,
-                    Format('An error (%u) occured in procedure OnTimeUpdate', [hr]));
-      Exit;
-    end;
+  case pt_RequestMsg of
+  rMsgSetPosition:       begin
+                           hr := pr_MediaEngine.SetCurrentTime(pr_Position);
+                         end;
+  rMsgSetVolume:         begin
+                           hr := pr_MediaEngine.SetVolume(pr_Volume);
+                         end;
+  rMsgSetBalance:        begin
+                           hr := pr_MediaEngine.SetBalance(pr_Balance);
+                         end;
+  rMsgUpdateVideoStream: begin
+                           hr := pr_MediaEngine.UpdateVideoStream(Nil,
+                                                                  @pt_rcpdest,
+                                                                  Nil);
+                         end;
+  rMsgFlush:             begin
+                           hr := pr_MediaEngine.Shutdown();
+                           goto doexit;
+                         end;
+  rMsgPause:             begin
+                           hr := pr_MediaEngine.Pause();
+                           goto doexit;
+                         end;
+  rMsgStop:              begin
+                           if SUCCEEDED(pr_MediaEngine.Pause()) then
+                             begin
+                               hr := pr_MediaEngine.SetCurrentTime(0.0);
+                               SetWindowText(pt_hwndEvent,
+                                             'STOPPED');
+                             end;
+                           goto doexit;
+                         end;
+  end;
 
   // Progress Information send to caller form.
   pu_CurrPosition := pr_MediaEngine.GetCurrentTime;
@@ -576,6 +580,13 @@ begin
                 '  Duration: ' + MfSecToStr(pu_Duration - pu_CurrPosition, false) +
                 ' / ' + MfSecToStr(pu_CurrPosition, true)
                 );
+
+doexit:
+  if Failed(hr) then
+    SetWindowText(pt_hwndEvent,
+                  Format('An error (%u) occured in procedure OnTimeUpdate', [hr]));
+
+  pt_RequestMsg := rMsgNone;
 
 end;
 {$HINTS ON}
@@ -926,9 +937,9 @@ var
 begin
   // Stop the player and release all it's resources
   // This is handled in the OnTime event
-  pt_Request := rMsgFlush;
+  pt_RequestMsg := rMsgFlush;
   hMsg := GetCurrentThread();
-  while (pt_Request <> rMsgNone) do
+  while (pt_RequestMsg <> rMsgNone) do
     HandleMessages(hMsg);
 end;
 
@@ -1001,9 +1012,13 @@ done:
 end;
 
 
-function TcMediaEngine.Pause(): HResult;
+procedure TcMediaEngine.Pause();
 begin
-  Result := pr_MediaEngine.Pause();
+  // Send request required, as this is an async method
+  // The request will be handled during the ontime eventhandler
+  pt_RequestMsg := rMsgPause;
+  while (pt_RequestMsg <> rMsgNone) do
+    HandleMessages(GetCurrentThread());
   SetWindowText(pt_hwndEvent,
                 'PAUSED');
 end;
@@ -1012,26 +1027,31 @@ end;
 // This needs some explanation:
 // There is a slight difference between stop or pause,
 // At stop the mediafilepointer will be reset to it's begin and starts all over again when playbutton is pressed.
-function TcMediaEngine.Stop(): HResult;
+procedure TcMediaEngine.Stop();
 begin
-  if SUCCEEDED(pr_MediaEngine.Pause()) then
-    begin
-      Result := pr_MediaEngine.SetCurrentTime(0.0);
-      SetWindowText(pt_hwndEvent,
-                    'STOPPED');
-    end
- else
-   Result := E_FAIL;
+  pt_RequestMsg := rMsgStop;
+  while (pt_RequestMsg <> rMsgNone) do
+    HandleMessages(GetCurrentThread());
+  SetWindowText(pt_hwndEvent,
+                'STOPPED');
 end;
 
 
 // This will free al resources kept by the MediaEngine.
 // The caller has to release the player object and re-initialize,
 // before playing a new mediasource.
-function TcMediaEngine.Flush(): HResult;
+procedure TcMediaEngine.Flush();
 begin
-  // Shut down the engine and release all sources
-  Result := pr_MediaEngine.Shutdown();
+  // Stop the player and release all it's resources
+  if pu_RenderingState <> rsPlaying then
+    pr_MediaEngine.Shutdown()  //direct handling
+  else
+    begin
+      // Handled in the OnTime event
+      pt_RequestMsg := rMsgFlush;
+      while (pt_RequestMsg <> rMsgNone) do
+        HandleMessages(GetCurrentThread());
+    end;
 end;
 
 
@@ -1041,7 +1061,7 @@ begin
   // Result := gi_MediaEngine.SetVolume(dVol); >> Don't use this directly,
   // but let it be done in the eventhandler, to prevent application is going into zombie state.
 
-  pt_Request := rMsgSetVolume;
+  pt_RequestMsg := rMsgSetVolume;
   pr_Volume := dVol;
 end;
 
@@ -1055,9 +1075,9 @@ begin
   // but let it be done in the eventhandler, to prevent application is going into zombie state.
   // That is because the player runs in async state.
   pr_Balance := dBal;
-  pt_Request := rMsgSetBalance;
+  pt_RequestMsg := rMsgSetBalance;
   hMsg := GetCurrentThread();
-  while (pt_Request <> rMsgNone) do
+  while (pt_RequestMsg <> rMsgNone) do
     HandleMessages(hMsg);
 end;
 
@@ -1076,9 +1096,9 @@ var
 
 begin
   pr_Position := sTime;
-  pt_Request := rMsgSetPosition;
+  pt_RequestMsg := rMsgSetPosition;
   hMsg := GetCurrentThread();
-  while (pt_Request <> rMsgNone) do
+  while (pt_RequestMsg <> rMsgNone) do
     HandleMessages(hMsg);
 end;
 
@@ -1134,7 +1154,7 @@ try
       // executed in the OnTick handler
 
       pt_rcpdest := nr;
-      pt_Request := rMsgUpdateVideoStream;
+      pt_RequestMsg := rMsgUpdateVideoStream;
       // wait for any more events to be processed.
       WaitForSingleObject(pt_hwndVideo,
                           INFINITE);
